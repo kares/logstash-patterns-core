@@ -486,3 +486,54 @@ describe "URN" do
     end
   end
 end
+
+describe_pattern "EMAILADDRESS", ['legacy', 'ecs-v1'] do
+
+  # NOTE: EMAILLOCALPART was only updated in ECS mode, as following the RFC is
+  # actually a breaking change -> legacy does match incorrect e-mail addresses.
+
+  it "matches 'hello.world@123.net' address" do
+    expect(grok_exact_match(pattern, 'hello.world@123.net')).to pass
+  end
+
+  [
+      'a@example.com',
+      'a{b}@example.com',
+      'Foo+Bar@x.exposed',
+  ].each do |valid_email|
+    it "matches #{valid_email.inspect} address" do
+      expect(grok_exact_match(pattern, valid_email)).to pass if ecs_compatibility?
+    end
+  end
+
+  it "does not match 'x y@example.com' address" do
+    expect(grok_exact_match(pattern, 'hello.world@123.net')).to pass
+  end
+
+  [
+      'a:b@example.com',
+      'a..b@example.com',
+  ].each do |invalid_email|
+    it "does not match #{invalid_email.inspect} address" do
+      expect(grok_exact_match(pattern, invalid_email)).to_not pass if ecs_compatibility?
+    end
+  end
+
+  it "matches e-mail with digits only local-part" do
+    expect(grok_exact_match(pattern, '00@q.ro')).to pass if ecs_compatibility?
+  end
+
+  it "matches e-mail with 64 chars in local-part" do
+    expect(grok_exact_match(pattern, ('ab' * 32) + '@root.cz')).to pass
+    expect(grok_exact_match(pattern, ('a.bc' * 16) + '@00.cz')).to pass
+  end
+
+  it "does not match e-mail with more than 64 char length local-part" do
+    if ecs_compatibility?
+      expect(grok_exact_match(pattern, ('ab' * 32) + 'a' + '@root.cz')).to_not pass
+      # NOTE: we allow longer with '.' but at least we limit "too long" :
+      expect(grok_exact_match(pattern, ('a.bc' * 64) + '@00.cz')).to_not pass
+    end
+  end
+
+end
